@@ -1,0 +1,3 @@
+const LAYER_ID_WORLD = 1
+const LAYER_ID_ENTITY = 2
+const LAYER_BODY_PARTY = 3

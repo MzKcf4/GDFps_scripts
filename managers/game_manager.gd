@@ -33,6 +33,7 @@ func stop_game():
 	is_in_main_menu = true
 
 func start_game():
+	ResourceManager.sync_weapon_info()
 	get_tree().change_scene_to_packed(game_scene)
 	is_in_main_menu = false
 	

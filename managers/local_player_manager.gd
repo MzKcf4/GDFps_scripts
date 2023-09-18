@@ -18,14 +18,17 @@ func set_in_game_player(player : FpsPlayer):
 	in_game_player = player
 	player_hud.connect_player_signals(player)
 
-func get_weapon(weapon_path):
-	in_game_player.get_weapon(weapon_path)
+func get_weapon(weapon_id):
+	in_game_player.get_weapon(weapon_id)
 
 func update_hud_info_text(text: String):
 	player_hud.update_info_text(text)
 
 func toggle_player_menu():
 	player_menu.toggle()
+
+func show_weapon_selection(weapon_ids : Array):
+	player_hud.show_weapon_selection(weapon_ids)
 
 func can_process_input() -> bool:
 	return !player_menu.visible

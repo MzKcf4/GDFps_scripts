@@ -35,7 +35,7 @@ const EXCLUDED_KEYS : Array = ["_empty" , "_last" , "anim_"]
 
 const STD_ANI_KEYS_MAPPING : Dictionary = { 
 	"deploy" : ["deploy" , "draw"],
-	"fire" : ["fire"],
+	"fire" : ["fire" , "shoot"],
 	"reload" : ["reload"],
 	"idle" : ["idle" , "a_idle_1"]
   }
@@ -89,7 +89,7 @@ func parse_qc_file(qc_user_path):
 		var should_skip : bool = false
 		# skip some seq like reload_empty 
 		for excluded_key in EXCLUDED_KEYS:
-			#print(excluded_key + " vs " + sequence_name)
+			print(excluded_key + " vs " + sequence_name)
 			if(excluded_key in sequence_name):
 				should_skip = true
 				break
@@ -106,7 +106,6 @@ func parse_qc_file(qc_user_path):
 				# either 'deploy' / 'draw' found 
 				weapon_ani_res.add_standard_animation(std_key)
 				i = i + parse_animation_seq(lines, i,std_key)
-				print("ending line : " + str(i) + " vs " + str(lines.size()))
 				# after that , check if using 'LAYER' mode
 				# we can't simply skip 'layer' because sounds definitions are usually in 'layer'
 				if(not USE_LAYER and "_layer" in sequence_name):
@@ -115,7 +114,8 @@ func parse_qc_file(qc_user_path):
 				var animation_name = find_corresponding_animation_name(sequence_name)
 				weapon_ani_res.set_animation_qc_key(std_key , sequence_name)
 				weapon_ani_res.set_animation_name(std_key, animation_name)
-				weapon_info.set_animation_key(std_key, animation_name)
+				var fps = weapon_ani_res.get_animation_fps_key(std_key)
+				weapon_info.set_animation_key(std_key, animation_name , fps)
 				# no need to loop further when found
 				break;
 				
@@ -155,8 +155,9 @@ func parse_animation_seq(lines: PackedStringArray , start_line: int,std_ani_key:
 func find_corresponding_animation_name(seq_name: String) -> String:
 	var dict = get_animation_resources()
 	for file_path in dict.keys():
-		var name_to_match = seq_name + ".res"
-		if(name_to_match in file_path):
+		var ani_file_name = EditorUtils.extract_file_name(file_path)
+		#var name_to_match = seq_name + ".res"
+		if(seq_name == ani_file_name):
 			var file_paths = file_path.split('/')
 			var ani_name = file_paths[file_paths.size() - 1].replace(".res" , '')
 			return ani_name

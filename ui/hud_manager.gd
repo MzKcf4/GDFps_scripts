@@ -13,6 +13,7 @@ class_name PlayerHud
 @onready var enemy_health_label : Label = $Enemy_Health_Bar/Label_Enemy_Health
 @onready var reload_bar : ProgressBar = $Reload_Bar
 @onready var timer_reload_bar : Timer = $Reload_Bar/Timer
+@onready var weapon_menu: WeaponSelectionMenu = $Weapon_Selection_Container
 
 func _process(delta):
 	fps_label.text = str(Engine.get_frames_per_second())
@@ -62,3 +63,6 @@ func _on_hide_enemy_health_bar_timer_timeout():
 
 func _on_reload_bar_timer_timeout():
 	reload_bar.visible = false
+
+func show_weapon_selection(weapon_ids: Array):
+	weapon_menu.show_weapon_selection(weapon_ids)

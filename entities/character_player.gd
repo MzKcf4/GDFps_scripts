@@ -40,56 +40,73 @@ var sway_left : Vector3 = Vector3(0, 0.1 , 0)
 var sway_right : Vector3 = Vector3(0, -0.1 , 0)
 var sway_normal : Vector3
 
-var multiplayer_id = -1
+var net_id : int = -1
 
-func get_movement_direction() -> Vector3:
-	if not can_control:
-		return Vector3.ZERO
-	var input_dir = Input.get_vector( "move_left", "move_right", "move_forward", "move_backward")
-	var direction = (head.transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
-	return direction
+func _init():
+	pass
 	
 func _ready():
 	add_to_group("player")
 	# this MUST be done otherwise there will be bug
-	name = str(get_multiplayer_authority())
-	multiplayer_id = name
+	net_id = get_multiplayer_authority()
+	name = str(net_id)
+	super._ready()
+
 	if(not is_multiplayer_authority()):
 		can_control = false
 		camera.queue_free()
 		return
 	else:
-		name_label.visible = false
-		rpc("rpc_set_name" , name)
-	
+		_ready_local()
+
+func load_model():
+	var model_scene = load("res://models/hk416_mod3/hk_416_mod_3.tscn")
+	if(model_scene):
+		model.load_model(model_scene)
+
+
+func _ready_local():
+	model.visible = false
+	# player name
+	name_label.visible = false
+	rpc("rpc_set_name" , name)
 	# Prepare arm
 	arm_model = preload("res://arms/HK416_MOD3/hk_416_mod_3_arms.tscn").instantiate()
 	arm_slot.add_child(arm_model)
-	spawn()
+	# hear less of self footstep
+	footstep_player.volume_db = -25
 
 @rpc("call_remote")
-func rpc_set_name(name: String):
-	name_label.text = name
+func rpc_set_name(player_name: String):
+	name_label.text = player_name
 
-func spawn():
-	super.spawn()
-	can_control = true
+func spawn(spawn_pos: Vector3):
+	super.spawn(spawn_pos)
+	can_control = is_multiplayer_authority()
 
-func get_weapon(weapon_tscn_path : String):
+func get_weapon(weapon_id : String):
 	if(not is_multiplayer_authority()):
 		return
 	if(active_weapon != null):
 		active_weapon.visible = false
 		active_weapon.queue_free()
-	weapons[0] = load(weapon_tscn_path).instantiate()
+	weapons[0] = ResourceManager.get_weapon(weapon_id)
 	weapon_slot.add_child(weapons[0])
 	switch_weapon(0)
+	
+func get_movement_direction() -> Vector3:
+	if not can_control or not is_alive:
+		return Vector3.ZERO
+	var input_dir = Input.get_vector( "move_left", "move_right", "move_forward", "move_backward")
+	var direction = (self.transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+	return direction
 
 func _input(event):
 	if not is_multiplayer_authority() || not InGameManager.local_player_manager.can_process_input():
 		return
 	if (event is InputEventMouseMotion):
-		head.rotate_y(-event.relative.x * SettingsManager.get_effective_mouse_sensitivity())
+		self.rotate_y(-event.relative.x * SettingsManager.get_effective_mouse_sensitivity())
+		#self.rotation.
 		camera.rotate_x(-event.relative.y * SettingsManager.get_effective_mouse_sensitivity())
 		camera.rotation.x = clamp(camera.rotation.x , deg_to_rad(-70) , deg_to_rad(70))
 		mouse_mov = -event.relative.x
@@ -107,6 +124,8 @@ func process_input():
 		switch_weapon(0)
 	if Input.is_action_pressed("slot_2"):
 		switch_weapon(1)
+	if Input.is_action_pressed("kill"):
+		kill()
 
 func _physics_process(delta):
 	if not is_multiplayer_authority():
@@ -154,7 +173,8 @@ func _physics_process(delta):
 	t_bob += delta * velocity.length() * float(is_on_floor())
 	camera.transform.origin = _headbob(t_bob)
 	# calls the rpc function for this object , on all other peers
-	rpc("remote_set_position", global_position)
+	var is_moving = get_movement_direction() != Vector3.ZERO
+	rpc("remote_set_position", global_position , self.rotation , is_moving)
 
 
 func _headbob(time) -> Vector3:
@@ -174,7 +194,7 @@ func switch_weapon(slot: int):
 		return
 	if(active_weapon != null):
 		active_weapon.visible = false
-	
+
 	active_weapon = weapons[slot]
 	active_weapon.visible = true
 	active_weapon.deploy()
@@ -191,10 +211,15 @@ func shoot() -> bool:
 	on_weapon_fire.emit(active_weapon)
 	var space = get_world_3d().direct_space_state
 	
+	var bullet_dest = camera.global_transform.basis.z * 100
+	bullet_dest.x += randf_range(-5 , 5)
+	bullet_dest.y += randf_range(-5 , 5)
+	
 	# shoot a ray of 100m from camera
-	var mask = 0b00000000_00000000_00000000_00000010
-	var query = PhysicsRayQueryParameters3D.create(camera.global_position,camera.global_position - camera.global_transform.basis.z * 100 , mask)
-	var bullet_to: Vector3 = (camera.global_position - camera.global_transform.basis.z * 100)
+	var mask = 0b00000000_00000000_00000000_00000100
+	var query = PhysicsRayQueryParameters3D.create(camera.global_position,camera.global_position - bullet_dest , mask)
+	var bullet_to: Vector3 = (camera.global_position - bullet_dest)
+	
 	query.collide_with_areas = true
 	var collision = space.intersect_ray(query)
 	if collision and collision.collider.is_in_group("Head"):
@@ -206,11 +231,12 @@ func shoot() -> bool:
 		character.hit(active_weapon, collision.position , camera.global_position , BodyParts.HEAD)
 		bullet_to = collision.position
 		on_hit_enemy.emit(character)
-	if collision and collision.collider.is_in_group("Body"):
+	elif collision and collision.collider.is_in_group("Body"):
 		var character = collision.collider.owner.get_parent().owner
 		character.hit(active_weapon, collision.position , camera.global_position , BodyParts.BODY)
 		on_hit_enemy.emit(character)
 		bullet_to = collision.position
+
 	
 	rpc("rpc_create_bullet" , self.global_position , bullet_to)
 	return true
@@ -228,16 +254,18 @@ func rpc_create_bullet(from: Vector3 , to: Vector3):
 
 # this call makes 60 times per second , so unreliable is better
 @rpc("unreliable")
-func remote_set_position(authority_position):
-	global_position = authority_position
+func remote_set_position(auth_pos: Vector3 , auth_rotation: Vector3 , is_moving: bool):
+	self.global_position = auth_pos
+	self.rotation = auth_rotation
+	model.set_moving(is_moving)
 
 func take_damage(damage: int):
 	super.take_damage(damage)
 
 func kill():
+	rpc("rpc_kill")
+
+@rpc("call_local")
+func rpc_kill():
 	super.kill()
 	can_control = false;
-
-func teleport_to(position: Vector3):
-	if(is_multiplayer_authority()):
-		self.position = position

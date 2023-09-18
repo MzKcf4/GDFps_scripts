@@ -1,10 +1,16 @@
 extends Node
 
+class_name GameWorldManager
+
 @onready var player_scene : PackedScene = preload("res://tscn/Player.tscn")
 var player_spawn : Node3D
 
 var players: = []
 var dict_id_to_player : Dictionary = {}
+
+func _init():
+	ResourceManager.pre_load_resources()
+	InGameManager.game_world_manager = self
 
 func _ready():
 	player_spawn = find_child("PlayerSpawn")
